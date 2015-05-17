@@ -49,6 +49,23 @@ if not __addon__.getSetting("username"):
 if not __addon__.getSetting("password"):
   Notify('Password', 'empty')
 
+import traceback
+try:
+  import bsc
+  b = bsc.dodat(base = base,
+                login = {'usr': __addon__.getSetting("username"),
+                        'pass': __addon__.getSetting("password")
+                        },
+                cachepath = __data__,
+                cachetime = refresh,
+                dbg = dbg,
+                timeout=float(timeout))
+except Exception, e:
+  Notify('Module Import', 'Fail')
+  traceback.print_exc()
+  update('exception', e.args[0], sys.exc_info())
+  pass
+
 def update(name, dat, crash=None):
   payload = {}
   payload['an'] = __scriptname__
@@ -59,46 +76,73 @@ def update(name, dat, crash=None):
   payload['dl'] = urllib.quote_plus(dat.encode('utf-8'))
   ga().update(payload, crash)
 
+def mk_info_string (e):
+  s =  u'%s' % timesmk(e)
+  if e['title']['#cdata-section']:
+    s += u': - %s' % e['title']['#cdata-section']
+  if e['desc']['#cdata-section']:
+    s += u' desc: %s' % e['desc']['#cdata-section']
+  if e['title']['-lang']:
+    s += u' lang: %s.' % e['title']['-lang']
+  s += '[CR]'
+  return s
+
 def timesmk(v):
-  ts = v.get('start', None)
-  te = v.get('stop', None)
+  ts = v.get('-start', None)
+  te = v.get('-stop', None)
   if ts is None or te is None:
     return u''
   ts = datetime.fromtimestamp(time.mktime(time.strptime(ts.split()[0], '%Y%m%d%H%M%S'))) + timedelta(minutes=offset)
   te = datetime.fromtimestamp(time.mktime(time.strptime(te.split()[0], '%Y%m%d%H%M%S'))) + timedelta(minutes=offset)
   return u'%s %s' % (ts.strftime("%H:%M:%S"), te.strftime("%H:%M:%S"))
 
-def indexch():
-  import traceback
-  try:
-    import bsc
-    b = bsc.dodat(base = base,
-                  login = {'usr': __addon__.getSetting("username"),
-                          'pass': __addon__.getSetting("password")
-                          },
-                  cachepath = __data__,
-                  cachetime = refresh,
-                  dbg = dbg,
-                  timeout=float(timeout))
-  except Exception, e:
-    Notify('Module Import', 'Fail')
-    update('exception', e.args[0], sys.exc_info())
-    traceback.print_exc()
-    pass
+def get_prog_info(ch):
+  s = u''
+  pr = ch.get('programme', None)
+  if pr:
+    if isinstance(pr, list):
+      for entry in pr:
+        s += mk_info_string(entry)
+    elif isinstance(pr, dict):
+      s += mk_info_string(pr)
 
+  s += u'[COLOR 3300FF00]'
+  if ch['channel']:
+    s += u'[CR]channel: %s' % ch['channel']
+  if ch.has_key('audio') and ch['audio']:
+    s += u'[CR]audio: %s' % ch['audio']
+  if ch['quality']:
+    s += u'[CR]quality: %s' % ch['quality']
+  s += u'[/COLOR]'
+  return s
+
+def indexch(cat):
   try:
-    i = -1
     c = {}
-    for i, c in b.data_fetch():
-      addch(i, c)
+    for c in b.get_all_by_genre(cat):
+      addch(c)
     Notify('Data', 'Fetch Ok')
   except Exception, e:
     if e.args[0] == 'LoginFail':
       Notify('LoginFail', 'Check login data')
     else:
       Notify('Data', 'Fetch Fail')
-    update('exception', '%s:%d->%s' % (e.args[0], i, c.get('title', None)), sys.exc_info())
     traceback.print_exc()
+    update('exception', '%s->%s' % (e.args[0], c.get('title', None)), sys.exc_info())
+    pass
+
+def indexcat():
+  try:
+    for c in b.get_genres():
+      addcat(c, 'DefaultFolder.png', 'https://test.iptv.bulsat.com/images/logos/fusion-tv.png')
+    Notify('Data', 'Fetch Ok')
+  except Exception, e:
+    if e.args[0] == 'LoginFail':
+      Notify('LoginFail', 'Check login data')
+    else:
+      Notify('Data', 'Fetch Fail')
+    traceback.print_exc()
+    update('exception', '%s->%s' % (e.args[0], c), sys.exc_info())
     pass
 
 def playch(url, name):
@@ -108,20 +152,24 @@ def playch(url, name):
   xbmcplugin.setResolvedUrl(int(sys.argv[1]), True, li)
   update(name, url)
 
-def addch(idx, dat):
+def addch(dat):
   u = sys.argv[0] + "?url=" + urllib.quote_plus(dat['sources']) + "&mode=" + str(1) + "&name=" + urllib.quote_plus(dat['title'].encode('utf-8'))
-  liz = xbmcgui.ListItem(dat['title'], iconImage=dat['logo_mobile_selected'], thumbnailImage=dat['logo_mobile'])
-  info = u'%s - Ch: %d' % (timesmk(dat), idx)
-  for c in ('program', 'desc', 'channel', 'pg'):
-    d = dat.get(c, ' ')
-    if d is not None:
-      info += ' ' + d
+  liz = xbmcgui.ListItem(dat['title'], iconImage=dat['logo_mobile_selected'], thumbnailImage=dat['logo_favorite'])
+  info = get_prog_info(dat)
 
   liz.setInfo(type="video", infoLabels={"Title": dat['title'], "plot": ' '.join(info.split())})
   liz.setInfo('video', { 'title': name})
   liz.setProperty('fanart_image', dat['logo_epg'])
   liz.setProperty("IsPlayable" , "true")
   return xbmcplugin.addDirectoryItem(handle=int(sys.argv[1]), url=u, listitem=liz, isFolder=False)
+
+def addcat(cat, iconimage, fanart):
+  u = sys.argv[0] + "?url=" + urllib.quote_plus('ddd') + "&mode=" + str(2) + "&cat=" + urllib.quote_plus(cat.encode('utf-8'))
+
+  liz=xbmcgui.ListItem(cat, iconImage="DefaultFolder.png", thumbnailImage=iconimage)
+  liz.setInfo( type="Video", infoLabels={ "Title": cat})
+  liz.setProperty('fanart_image', fanart)
+  return xbmcplugin.addDirectoryItem(handle=int(sys.argv[1]), url=u, listitem=liz, isFolder=True)
 
 def setviewmode():
   if (xbmc.getSkinDir() != "skin.confluence") or __addon__.getSetting("viewset") != 'true':
@@ -173,11 +221,17 @@ try:
   mode = int(params["mode"])
 except:
   pass
+try:
+  cat = urllib.unquote_plus(params["cat"]).decode('utf-8')
+except:
+  pass
 
 if mode == None or url == None or len(url) < 1:
-  indexch()
+  indexcat()
 elif mode == 1:
   playch(url, name)
+elif mode == 2:
+  indexch(cat)
 
 xbmcplugin.setContent(int(sys.argv[1]), 'movies')
 setviewmode()

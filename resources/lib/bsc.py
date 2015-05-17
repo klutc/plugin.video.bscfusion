@@ -46,7 +46,7 @@ class dodat():
     self.__t = timeout
     self.__BLOCK_SIZE = 16
     self.__URL_LOGIN = base + '/?auth'
-    self.__URL_LIST = base + '/?json&tv&mini'
+    self.__URL_LIST = base + '/?json&tv'
     self.__js = None
 
   def __log_dat(self, d):
@@ -123,7 +123,7 @@ class dodat():
         else:
           raise Exception("LoginFail")
 
-  def data_fetch(self):
+  def __data_fetch(self):
     if os.path.exists(self.__cachepath):
       self.__restore_data()
       if time.time() - self.__js['ts'] < self.__refresh:
@@ -138,5 +138,13 @@ class dodat():
       self.__log_dat('Base time: %s' % time.ctime(self.__js['ts']))
       self.__store_data()
 
-    for ch in self.__js['tv']:
-      yield self.__js['tv'].index(ch) , ch
+  def get_genres(self):
+    self.__data_fetch()
+    seen = set()
+    for g in [x['genre'] for x in self.__js['tvlists']['tv'] if not (x['genre'] in seen or seen.add(x['genre']))]:
+      yield g
+
+  def get_all_by_genre(self, g):
+    self.__data_fetch()
+    for ch in [i for i in self.__js['tvlists']['tv'] if i['genre'] == g]:
+      yield ch
