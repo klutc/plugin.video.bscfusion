@@ -132,6 +132,7 @@ def indexch(cat):
     pass
 
 def indexcat():
+  c = {}
   try:
     for c in b.get_genres():
       addcat(c, 'DefaultFolder.png', 'https://test.iptv.bulsat.com/images/logos/fusion-tv.png')
@@ -142,7 +143,7 @@ def indexcat():
     else:
       Notify('Data', 'Fetch Fail')
     traceback.print_exc()
-    update('exception', '%s->%s' % (e.args[0], c), sys.exc_info())
+    update('exception', '%s->%s' % (e.args[0], c.get('genre', None)), sys.exc_info())
     pass
 
 def playch(url, name):
@@ -154,7 +155,7 @@ def playch(url, name):
 
 def addch(dat):
   u = sys.argv[0] + "?url=" + urllib.quote_plus(dat['sources']) + "&mode=" + str(1) + "&name=" + urllib.quote_plus(dat['title'].encode('utf-8'))
-  liz = xbmcgui.ListItem(dat['title'], iconImage=dat['logo_mobile_selected'], thumbnailImage=dat['logo_favorite'])
+  liz = xbmcgui.ListItem(dat['title'], iconImage=dat['logo_mobile_selected'], thumbnailImage=dat['logo_selected'])
   info = get_prog_info(dat)
 
   liz.setInfo(type="video", infoLabels={"Title": dat['title'], "plot": ' '.join(info.split())})

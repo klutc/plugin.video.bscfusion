@@ -1,2 +1,4 @@
-[B]*** 0.0.1 ***[/B]
+[B]*** 0.0.3 ***[/B]
+- Change default timeout to 5s
+- thumbnailImage change
 - Initial release
